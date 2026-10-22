@@ -16,3 +16,16 @@ An automated smart parking barrier system, featuring a dynamic day/night tariff 
 - **Live Status Display and Checkout Telemetry:** Digital display interface presenting system status in real time (virtual time, active tariff tier, remaining free spots, and barrier movement) along with an exit summary view showing total parked duration and the calculated fee.
 
 - **Event-Driven Non-Blocking Architecture:** Central Finite State Machine (FSM) coordinating sensor inputs, display updates, fee calculation, and motor actuation using a periodic non-blocking hardware time base.
+
+
+
+
+
+##  Hardware Components
+
+* **Microcontroller:** STM32 Nucleo-F072RB 
+* **Distance Sensor:** HC-SR04 ultrasonic sensor (vehicle detection at entry)
+* **Display:** 0.96" OLED SSD1306 (128x64 px, I2C interface)
+* **Actuator:** SG90 Micro Servo (barrier arm control)
+* **Voltage Divider:** 1k Ω and 2.2k Ω resistors (protecting the HC-SR04 ECHO pin for STM32 3.3V logic)
+* **Prototyping & Power:** Breadboard and jumper wires
