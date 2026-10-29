@@ -1,0 +1,5 @@
+../Core/Src/barrier.c:17:6:Barrier_Init	16	static
+../Core/Src/barrier.c:25:6:Barrier_StartOpening	8	static
+../Core/Src/barrier.c:29:6:Barrier_StartClosing	8	static
+../Core/Src/barrier.c:33:6:Barrier_Update	8	static
+../Core/Src/barrier.c:52:9:Barrier_IsClosed	8	static
