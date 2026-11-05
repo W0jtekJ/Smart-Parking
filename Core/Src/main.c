@@ -24,6 +24,7 @@
 #include "ssd1306.h"
 #include "fonts.h"
 #include "barrier.h"
+#include "ultrasonic.h"
 #include <stdio.h>
 
 /* USER CODE END Includes */
@@ -51,7 +52,8 @@ TIM_HandleTypeDef htim2;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-
+Ultrasonic_t hultrasonic;
+uint32_t clear_time = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -103,37 +105,55 @@ int main(void)
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
  Barrier_Init(&htim2, TIM_CHANNEL_2);
-
+ // PB0 to TRIG (GPIOB, GPIO_PIN_0), PA0 to ECHO (GPIOA, GPIO_PIN_0)
+ Ultrasonic_Init(&hultrasonic, &htim2, GPIOB, GPIO_PIN_0, GPIOA, GPIO_PIN_0);
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
+ while (1)
+ {
+     Barrier_Update();
+     Ultrasonic_Update(&hultrasonic);
 
-	      Barrier_Update();
 
-	      if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == GPIO_PIN_RESET){
+     uint32_t dist = Ultrasonic_GetDistance(&hultrasonic);
+     if (dist > 0 && dist < 15) {
+         clear_time = 0;
+    	 if (Barrier_IsClosed()) {
+             Barrier_StartOpening();
+         }
+     }
 
-	      if(Barrier_IsClosed()){
-	    	  Barrier_StartOpening();
-	      } else{
-	    	  Barrier_StartClosing();
-	      }
+     else if(dist > 40 || dist == 0){
+    	 if(!Barrier_IsClosed()){
+    		 if(clear_time == 0){
+    			 clear_time = HAL_GetTick();
+    		 }
+    		 else if(HAL_GetTick() - clear_time >= 2000){
+    			 Barrier_StartClosing();
+    			 clear_time = 0;
+    		 }
+    	 }
+     }
+     else {
+    	 clear_time = 0;
+     }
 
-	      HAL_Delay(250);
-  }
-  }
-}
+
+     // Sterowanie przyciskiem (PC13)
+
+
+     HAL_Delay(10);
+ }
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
 
   /* USER CODE END 3 */
-
-
-
+}
 
 /**
   * @brief System Clock Configuration
@@ -242,6 +262,7 @@ static void MX_TIM2_Init(void)
 
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_IC_InitTypeDef sConfigIC = {0};
   TIM_OC_InitTypeDef sConfigOC = {0};
 
   /* USER CODE BEGIN TIM2_Init 1 */
@@ -262,6 +283,10 @@ static void MX_TIM2_Init(void)
   {
     Error_Handler();
   }
+  if (HAL_TIM_IC_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
   if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
   {
     Error_Handler();
@@ -269,6 +294,14 @@ static void MX_TIM2_Init(void)
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_RISING;
+  sConfigIC.ICSelection = TIM_ICSELECTION_DIRECTTI;
+  sConfigIC.ICPrescaler = TIM_ICPSC_DIV1;
+  sConfigIC.ICFilter = 0;
+  if (HAL_TIM_IC_ConfigChannel(&htim2, &sConfigIC, TIM_CHANNEL_1) != HAL_OK)
   {
     Error_Handler();
   }
@@ -343,6 +376,9 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(TRIG_GPIO_Port, TRIG_Pin, GPIO_PIN_RESET);
+
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
@@ -355,6 +391,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : TRIG_Pin */
+  GPIO_InitStruct.Pin = TRIG_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(TRIG_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
