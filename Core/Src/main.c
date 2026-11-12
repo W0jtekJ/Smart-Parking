@@ -26,6 +26,7 @@
 #include "barrier.h"
 #include "ultrasonic.h"
 #include <stdio.h>
+#include "display.h"
 
 /* USER CODE END Includes */
 
@@ -105,8 +106,8 @@ int main(void)
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
  Barrier_Init(&htim2, TIM_CHANNEL_2);
- // PB0 to TRIG (GPIOB, GPIO_PIN_0), PA0 to ECHO (GPIOA, GPIO_PIN_0)
  Ultrasonic_Init(&hultrasonic, &htim2, GPIOB, GPIO_PIN_0, GPIOA, GPIO_PIN_0);
+ Display_Init();
 
   /* USER CODE END 2 */
 
@@ -114,36 +115,36 @@ int main(void)
   /* USER CODE BEGIN WHILE */
  while (1)
  {
-     Barrier_Update();
-     Ultrasonic_Update(&hultrasonic);
+       Barrier_Update();
+       Ultrasonic_Update(&hultrasonic);
+
+       uint32_t dist = Ultrasonic_GetDistance(&hultrasonic);
 
 
-     uint32_t dist = Ultrasonic_GetDistance(&hultrasonic);
-     if (dist > 0 && dist < 15) {
-         clear_time = 0;
-    	 if (Barrier_IsClosed()) {
-             Barrier_StartOpening();
-         }
-     }
+       if (dist > 0 && dist < 15) {
+           clear_time = 0;
+           if (Barrier_IsClosed()) {
+               Barrier_StartOpening();
+           }
+       }
 
-     else if(dist > 40 || dist == 0){
-    	 if(!Barrier_IsClosed()){
-    		 if(clear_time == 0){
-    			 clear_time = HAL_GetTick();
-    		 }
-    		 else if(HAL_GetTick() - clear_time >= 2000){
-    			 Barrier_StartClosing();
-    			 clear_time = 0;
-    		 }
-    	 }
-     }
-     else {
-    	 clear_time = 0;
-     }
+       else {
+           if (!Barrier_IsClosed()) {
+               if (clear_time == 0) {
+                   clear_time = HAL_GetTick();
+               }
+               else if (HAL_GetTick() - clear_time >= 2000) {
+                   Barrier_StartClosing();
+                   clear_time = 0;
+               }
+           } else {
+               clear_time = 0;
+           }
+       }
 
 
-     // Sterowanie przyciskiem (PC13)
 
+       Display_Update(dist, Barrier_IsClosed());
 
      HAL_Delay(10);
  }
