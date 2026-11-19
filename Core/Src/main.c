@@ -27,6 +27,8 @@
 #include "ultrasonic.h"
 #include <stdio.h>
 #include "display.h"
+#include "virtual_clock.h"
+#include "parking_manager.h"
 
 /* USER CODE END Includes */
 
@@ -69,6 +71,10 @@ static void MX_TIM2_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static uint32_t clear_zone_start_time = 0;
+static ParkingReceipt_t display_receipt = {0};
+static uint8_t next_exit_slot = 1U;
+static uint32_t last_btn_press_ms = 0;
 
 /* USER CODE END 0 */
 
@@ -108,6 +114,8 @@ int main(void)
  Barrier_Init(&htim2, TIM_CHANNEL_2);
  Ultrasonic_Init(&hultrasonic, &htim2, GPIOB, GPIO_PIN_0, GPIOA, GPIO_PIN_0);
  Display_Init();
+ VClock_Init(21, 45);
+ Parking_Init();
 
   /* USER CODE END 2 */
 
@@ -115,36 +123,66 @@ int main(void)
   /* USER CODE BEGIN WHILE */
  while (1)
  {
-       Barrier_Update();
-       Ultrasonic_Update(&hultrasonic);
+	 VClock_Update();
+	     Barrier_Update();
+	     Ultrasonic_Update(&hultrasonic);
 
-       uint32_t dist = Ultrasonic_GetDistance(&hultrasonic);
-
-
-       if (dist > 0 && dist < 15) {
-           clear_time = 0;
-           if (Barrier_IsClosed()) {
-               Barrier_StartOpening();
-           }
-       }
-
-       else {
-           if (!Barrier_IsClosed()) {
-               if (clear_time == 0) {
-                   clear_time = HAL_GetTick();
-               }
-               else if (HAL_GetTick() - clear_time >= 2000) {
-                   Barrier_StartClosing();
-                   clear_time = 0;
-               }
-           } else {
-               clear_time = 0;
-           }
-       }
+	     VirtualClock_t now_clock = VClock_GetTime();
+	     uint32_t dist = Ultrasonic_GetDistance(&hultrasonic);
 
 
+	     if (dist > 0 && dist < 15) {
+	         clear_zone_start_time = 0;
+	         if (Barrier_IsClosed()) {
+	             Barrier_StartOpening();
+	         }
+	     }
+	     else {
+	         if (!Barrier_IsClosed()) {
+	             if (clear_zone_start_time == 0) {
+	                 clear_zone_start_time = HAL_GetTick();
+	             }
+	             else if (HAL_GetTick() - clear_zone_start_time >= 2000) {
+	                 Barrier_StartClosing();
+	                 clear_zone_start_time = 0;
+	             }
+	         } else {
+	             clear_zone_start_time = 0;
+	         }
+	     }
 
-       Display_Update(dist, Barrier_IsClosed());
+
+	     if (HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin) == GPIO_PIN_RESET) {
+	         if (HAL_GetTick() - last_btn_press_ms > 300) {
+	             last_btn_press_ms = HAL_GetTick();
+
+	             if (!Parking_IsFull()) {
+	                 uint32_t new_id = 0;
+	                 Parking_VehicleEnter(now_clock.total_minutes, &new_id);
+	             } else {
+
+	                 Parking_VehicleExit(next_exit_slot, now_clock.total_minutes, &display_receipt);
+	                 next_exit_slot++;
+	                 if (next_exit_slot > PARKING_TOTAL_SLOTS) {
+	                     next_exit_slot = 1U;
+	                 }
+	             }
+	         }
+	     }
+
+
+	     const ParkingSlot_t *preview_slot = Parking_GetSlotInfo(next_exit_slot);
+	     if (preview_slot != NULL && preview_slot->is_occupied) {
+	         display_receipt = Parking_CalculateFee(next_exit_slot, now_clock.total_minutes);
+	     }
+
+
+	     Display_Update(dist,
+	                    Barrier_IsClosed(),
+	                    now_clock,
+	                    Parking_GetFreeSlotsCount(),
+	                    PARKING_TOTAL_SLOTS,
+	                    &display_receipt);
 
      HAL_Delay(10);
  }
